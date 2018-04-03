@@ -86,7 +86,7 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                                     '\nTeam: **' + str(get_team_name(gym_team_id))+ '**' +
                                     '\nReported by: __' + str(ctx.message.author.name) + '__' +
                                     '\n\nhttps://www.google.com/maps?q=loc:' + str(gym_data[0][2]) + ',' + str(gym_data[0][3]),
-                        color=team_color(gym_team_id)
+                        color=get_team_color(gym_team_id)
                     )
                     thumbnail_image_url = get_egg_url(raw_raid_level)
                     raid_embed.set_thumbnail(url=thumbnail_image_url)
@@ -109,7 +109,7 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                                     '\nTeam: **' + str(get_team_name(gym_team_id))+ '**' +
                                     '\nReported by: __' + str(ctx.message.author.name) + '__' +
                                     '\n\nhttps://www.google.com/maps?q=loc:' + str(gym_data[0][2]) + ',' + str(gym_data[0][3]),
-                        color=team_color(gym_team_id)
+                        color=get_team_color(gym_team_id)
                     )
                     thumbnail_image_url = 'https://bitbucket.org/anzmap/sprites/raw/HEAD/' + str(pokemon_id) + '.png'
                     raid_embed.set_thumbnail(url=thumbnail_image_url)
@@ -139,7 +139,7 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                                     '\nTeam: **' + str(get_team_name(gym_team_id))+ '**' +
                                     '\nReported by: __' + str(ctx.message.author.name) + '__' +
                                     '\n\nhttps://www.google.com/maps?q=loc:' + str(gym_data[0][2]) + ',' + str(gym_data[0][3]),
-                        color=team_color(gym_team_id)
+                        color=get_team_color(gym_team_id)
                     )
                     thumbnail_image_url = 'https://bitbucket.org/anzmap/sprites/raw/HEAD/' + str(pokemon_id) + '.png'
                     raid_embed.set_thumbnail(url=thumbnail_image_url)
