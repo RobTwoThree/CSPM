@@ -3,12 +3,13 @@ import discord
 from discord.ext import commands
 import asyncio
 from pokemonlist import pokemon, pokejson, pokejson_by_name
+from cspm_utils import find_pokemon_id, get_team_id, get_team_name, get_team_color, get_egg_url
 from config import bot_channel, token, host, user, password, database, website, log_channel, instance_id
 import datetime
 import calendar
 import time
 
-bot = commands.Bot(command_prefix = '!') #set prefix to !
+bot = commands.Bot(command_prefix = '!') # Set prefix to !
 
 database = MySQLdb.connect(host,user,password,database)
 
@@ -16,76 +17,6 @@ cursor = database.cursor()
 
 print('CSPM Started for ' + str(instance_id))
 
-def find_pokemon_id(name):
-    if name == 'Egg':
-        return 0
-    elif name == 'Nidoran-F':
-        return 29
-    elif name == 'Nidoran-M':
-        return 32
-    elif name == 'Mr-Mime':
-        return 122
-    elif name == 'Ho-Oh':
-        return 250
-    elif name == 'Mime-Jr':
-        return 439
-    else:
-        return int(pokejson_by_name.get(name, 0))
-
-def get_time(minute):
-    future = datetime.datetime.utcnow() + datetime.timedelta(minutes=minute)
-    return calendar.timegm(future.timetuple())
-
-def get_team_id(raw_team):
-    gym_team_id = 0
-
-    if raw_team.isnumeric() and ( raw_team >= '0' ) and ( raw_team <= '3' ):
-        gym_team_id = int(raw_team)
-    else:
-        team_name = str(raw_team).capitalize()
-        if ( team_name in 'Mystic' ) or ( team_name in 'Blue' ):
-           gym_team_id = 1
-        elif ( team_name in 'Valor' ) or ( team_name in 'Red' ):
-           gym_team_id = 2
-        elif ( team_name in 'Instinct')  or ( team_name in 'Yellow' ):
-           gym_team_id = 3
-        else:
-           gym_team_id = 0
-    return gym_team_id
-
-def get_team_name(team_id):
-    if ( team_id == 1 ):
-        team_name = 'Mystic'
-    elif ( team_id == 2 ):
-        team_name = 'Valor'
-    elif ( team_id == 3 ):
-        team_name = 'Instinct'
-    else:
-        team_name = 'Unknown'
-    return team_name
-
-def team_color(team_id):
-    if ( team_id == 1 ):
-        color = 0x005ef7
-    elif ( team_id == 2 ):
-        color = 0xdb0000
-    elif ( team_id == 3 ):
-        color = 0xfcd00a
-    else:
-        color = 0xbcbcbc
-    return color
-
-def get_egg_url(egg_level):
-    if ( egg_level >= '1' ) and ( egg_level <= '2' ):
-        egg_url = 'https://raw.githubusercontent.com/ZeChrales/PogoAssets/master/static_assets/png/ic_raid_egg_normal.png'
-    elif ( egg_level >= '3' ) and ( egg_level <= '4' ):
-        egg_url = 'https://raw.githubusercontent.com/ZeChrales/PogoAssets/master/static_assets/png/ic_raid_egg_rare.png'
-    else:
-        egg_url = 'https://raw.githubusercontent.com/ZeChrales/PogoAssets/master/static_assets/png/ic_raid_egg_legendary.png'
-
-    return egg_url
-
-#raid function
 @bot.command(pass_context=True)
 async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_remaining, raw_team):
     if ctx and ctx.message.channel.id == str(bot_channel):
@@ -121,8 +52,6 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                 raid_count = 0
                 for gym in gym_data:
                     gym_names += str(gym[0]) + ': ' + gym[1] + ' (' + str(gym[2]) + ', ' + str(gym[3]) + ')\n'
-
-
 
             if ( pokemon_name == "Egg" ):
                 est_end_time = remaining_time + 2700
@@ -162,7 +91,7 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                     thumbnail_image_url = get_egg_url(raw_raid_level)
                     raid_embed.set_thumbnail(url=thumbnail_image_url)
                     await bot.send_message(discord.Object(id=log_channel), embed=raid_embed)
-                    
+
                     print(str(ctx.message.author.name) + ' reported a ' + str(pokemon_name) + ' at ' + str(gym_name) + ' gym with ' + str(raw_time_remaining) + ' minutes left.')
             else:
                 # Update Egg to a hatched Raid Boss
@@ -202,7 +131,7 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                                   '\nRaid Ends: **' + str(time.strftime('%I:%M %p',  time.localtime(remaining_time))) + '**' +
                                   '\nTime Left: **' + str(raw_time_remaining) + ' minutes**' +
                                   '\nTeam: **' + str(get_team_name(gym_team_id)) + '**')
-                    
+
                     raid_embed=discord.Embed(
                         title='**Level ' + str(raw_raid_level) + ' ' + str(pokemon_name) + ' Raid**',
                         description='Gym: **' + str(gym_name) + ' Gym**' +
@@ -294,13 +223,13 @@ async def deleteraid(ctx, fort_id):
                 gym_name = gym_data[0][1]
                 gym_lat = gym_data[0][2]
                 gym_lon = gym_data[0][3]
-                
+
                 # Gym id is valid and returned 1 result
                 if ( count == 1 ):
                     cursor.execute("SELECT fort_id, level, pokemon_id, time_battle, time_end FROM raids WHERE fort_id='" + str(fort_id) + "' AND time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';")
                     raid_data = cursor.fetchall()
                     raid_count = cursor.rowcount
-                    
+
                     raid_fort_id = raid_data[0][0]
                     raid_level = raid_data[0][1]
                     raid_pokemon_id = raid_data[0][2]
@@ -318,14 +247,14 @@ async def deleteraid(ctx, fort_id):
                                   '\nPokemon: ** ' + str(raid_pokemon_name).capitalize() + '**' +
                                   '\nStart\Hatch Time: **' + str(time.strftime('%I:%M %p',  time.localtime(raid_time_battle))) + '**' +
                                   '\nEnd Time: **' + str(time.strftime('%I:%M %p',  time.localtime(raid_time_end))) + '**')
-                    
+
                     cursor.execute("DELETE FROM raids WHERE fort_id='" + str(fort_id) + "' AND time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';")
                     print(str(ctx.message.author.name) + ' deleted the Level ' + str(raid_level) + ' Raid at the ' + str(fort_id) + ': ' + str(gym_name) + ' Gym.')
                 else:
                     await bot.say('Gym ID provided is not valid.')
             else:
                 await bot.say('Enter the numeric ID of the gym where the raid is located.')
-            
+
             database.commit()
         except:
             database.rollback()
@@ -340,7 +269,7 @@ async def activeraids(ctx):
             cursor.execute("SELECT f.id, f.name, r.level, r.pokemon_id, r.time_battle, r.time_end FROM forts f JOIN raids r ON f.id=r.fort_id WHERE r.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "' ORDER BY r.level DESC, r.time_end;")
             raid_data = cursor.fetchall()
             raid_count = cursor.rowcount
-            
+
             await bot.say('There are currently ' + str(raid_count) + ' active raids.')
             active_raids_l5 = ''
             active_raids_l4 = ''
@@ -353,7 +282,7 @@ async def activeraids(ctx):
                     raid_pokemon_name = 'Unknown (Egg)'
                 else:
                     raid_pokemon_name = pokejson[str(raid_pokemon_id)]
-        
+
                 if ( raid_level == 5 ):
                     active_raids_l5 += str(time.strftime('%I:%M %p',  time.localtime(raid_time_end))) + ' : ' + str(raid_pokemon_name) + ' : ' + str(gym_name) + ' Gym (' +  str(fort_id) + ')\n'
                 elif ( raid_level == 4 ):
@@ -364,7 +293,7 @@ async def activeraids(ctx):
                     active_raids_l2 += str(time.strftime('%I:%M %p',  time.localtime(raid_time_end))) + ' : ' + str(raid_pokemon_name) + ' : ' + str(gym_name) + ' Gym (' +  str(fort_id) + ')\n'
                 else:
                     active_raids_l1 += str(time.strftime('%I:%M %p',  time.localtime(raid_time_end))) + ' : ' + str(raid_pokemon_name) + ' : ' + str(gym_name) + ' Gym (' +  str(fort_id) + ')\n'
-                    
+
             raid_report = ''
             if ( active_raids_l5 != '' ):
                 raid_report += '**LEVEL 5**\n' + active_raids_l5
@@ -392,10 +321,10 @@ async def updategymname(ctx, fort_id, new_gym_name):
             cursor.execute("SELECT id, name FROM forts WHERE id='" + str(fort_id) + "';")
             gym_data = cursor.fetchall()
             gym_count = cursor.rowcount
-            
+
             if ( gym_count == 1 ):
                 fort_id, gym_name = gym_data[0]
-        
+
                 cursor.execute("UPDATE forts SET name='" + str(new_gym_name) + "' WHERE id='" + str(fort_id) + "';")
                 cursor.execute("SELECT name FROM forts WHERE id='" + str(fort_id) + "';")
                 updated_gym_data = cursor.fetchall()
