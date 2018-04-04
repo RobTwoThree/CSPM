@@ -109,7 +109,7 @@ async def incubate(ctx, gym_id, remaining_time):
         raid_data = cursor.fetchall()
 
         gym_id, gym_name, gym_lat, gym_lon, gym_team_id, raid_level, raid_pokemon_id, time_end = raid_data[0]
-        await bot.send_message(channel,'Updated **Level ' + str(raid_level) + ' Egg to ' + str(pokejson[str(raid_pokemon_id)]) + ' Raid' + '**' +
+        await bot.send_message(channel,'Auto updated **Level ' + str(raid_level) + ' Egg to ' + str(pokejson[str(raid_pokemon_id)]) + ' Raid' + '**' +
                       '\nGym: **' + str(gym_id) + ': ' + str(gym_name) + ' Gym' + '**' +
                       '\nRaid Ends: **' + str(time.strftime('%I:%M %p',  time.localtime(remaining_time))) + '**' +
                       '\nTeam: **' + str(get_team_name(gym_team_id)) + '**')
@@ -295,7 +295,7 @@ async def list(ctx, raw_gym_name):
         database.ping(True)
         try:
             if raw_gym_name.isnumeric():
-                cursor.execute("SELECT id, name, lat, lon FROM forts WHERE id LIKE '%" + str(raw_gym_name) + "%';")
+                cursor.execute("SELECT id, name, lat, lon FROM forts WHERE id LIKE '" + str(raw_gym_name) + "';")
             else:
                 cursor.execute("SELECT id, name, lat, lon FROM forts WHERE name LIKE '%" + str(raw_gym_name) + "%';")
             data = cursor.fetchall()
