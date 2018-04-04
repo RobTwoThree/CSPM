@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 import asyncio
 from pokemonlist import pokemon, pokejson, pokejson_by_name
-from cspm_utils import find_pokemon_id, get_team_id, get_team_name, get_team_color, get_egg_url
+from cspm_utils import find_pokemon_id, get_team_id, get_team_name, get_team_color, get_egg_url, get_time
 from config import bot_channel, token, host, user, password, database, website, log_channel, instance_id
 import datetime
 import calendar
