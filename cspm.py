@@ -402,7 +402,8 @@ async def activeraids(ctx):
             if ( active_raids_l1 != '' ):
                 raid_report += '\n**LEVEL 1**\n' + active_raids_l1
 
-            await bot.say('**END TIME : POKEMON : GYM**\n' + str(raid_report))
+            if ( raid_report != '' ):
+                await bot.say('**END TIME : POKEMON : GYM**\n' + str(raid_report))
 
             database.commit()
         except:
