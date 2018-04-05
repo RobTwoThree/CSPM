@@ -9,6 +9,9 @@ import datetime
 import calendar
 import time
 import threading
+ADDED_EGG = 1
+HATCHED_EGG = 2
+ADDED_BOSS = 3
 
 bot = commands.Bot(command_prefix = '!') # Set prefix to !
 
@@ -16,7 +19,7 @@ database = MySQLdb.connect(host,user,password,database)
 
 cursor = database.cursor()
 
-print('CSPM Started for ' + str(instance_id))
+print('CSPM Started at ' + str(time.strftime('%I:%M %p on %m.%d.%y',  time.localtime(calendar.timegm(datetime.datetime.utcnow().timetuple())))) + ' for ' + str(instance_id))
 
 async def incubate(ctx, gym_id, remaining_time):
     channel = discord.Object(id=bot_channel)
@@ -53,13 +56,41 @@ async def incubate(ctx, gym_id, remaining_time):
                         '\nTeam: **' + str(get_team_name(gym_team_id))+ '**' +
                         '\nReported by: __' + str(ctx.message.author.name) + '__' +
                         '\n\nhttps://www.google.com/maps?q=loc:' + str(gym_lat) + ',' + str(gym_lon),
-            color=team_color(gym_team_id)
+            color=get_team_color(gym_team_id)
         )
         thumbnail_image_url = 'https://bitbucket.org/anzmap/sprites/raw/HEAD/' + str(raid_pokemon_id) + '.png'
         raid_embed.set_thumbnail(url=thumbnail_image_url)
         await bot.send_message(discord.Object(id=log_channel), embed=raid_embed)
     else:
         print('Auto-hatch cancelled. Egg was not found, possibly deleted before hatch.')
+
+async def score_it(ctx, gym_id, raid_end_time, report_type):
+    try:
+        current_time = datetime.datetime.utcnow()
+        print("SELECT s.id, s.player_name, s.raid_id, s.raid_level, s.time_end, s.points, s.report_type, r.fort_id FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL;")
+        cursor.execute("SELECT s.id, s.player_name, s.raid_id, s.raid_level, s.time_end, s.points, s.report_type, r.fort_id FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL;")
+        scoring_lines = cursor.fetchall()
+        count = cursor.rowcount
+        if (count):
+            score_id, player_name, raid_id, raid_level, raid_end_time, points, scored_report_type, fort_id = scoring_lines[0]
+            print('scored_report_type=' + str(scored_report_type))
+        print('count=' + str(count))
+        
+        
+        
+        if ( count == 0 ):
+            cursor.execute("INSERT INTO scoreboard(player_name, raid_id, raid_level, time_end, points, report_type) " +
+                           "VALUES ('" + str(ctx.message.author.name) + "','NULL','NULL','NULL','NULL','NULL' ) ")
+            print('Count it.')
+        elif ( (count == 1) and (scored_report_type == ADDED_EGG) ):
+            print('Score may count if scored_report_type is 1 (ADDED_EGG).')
+        else: # User maxed out attempts to score for this raid
+            print('Score should not count. Becase hit max for this raid or scored_report_type is 2 (HATCHED_EGG).')
+            print('scored_report_type is 3 (ADDED_BOSS).  Score should not count.')
+        database.commit()
+    except:
+        print('Error. Something went wrong in scoring.')
+        database.rollback()
 
 #raid function
 @bot.command(pass_context=True)
@@ -142,7 +173,7 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                     await bot.send_message(discord.Object(id=log_channel), embed=raid_embed)
                     
                     print(str(ctx.message.author.name) + ' reported a ' + str(pokemon_name) + ' at ' + str(gym_id) +': ' + str(gym_name) + ' gym with ' + str(raw_time_remaining) + ' minutes left.')
-
+                    bot.loop.create_task(score_it(ctx,gym_id,time.localtime(est_end_time),ADDED_EGG))
             else:
                 # Update Egg to a hatched Raid Boss
                 if (raid_count):
