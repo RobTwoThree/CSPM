@@ -53,7 +53,7 @@ async def incubate(ctx, gym_id, remaining_time):
                         '\nTeam: **' + str(get_team_name(gym_team_id))+ '**' +
                         '\nReported by: __' + str(ctx.message.author.name) + '__' +
                         '\n\nhttps://www.google.com/maps?q=loc:' + str(gym_lat) + ',' + str(gym_lon),
-            color=team_color(gym_team_id)
+            color=get_team_color(gym_team_id)
         )
         thumbnail_image_url = 'https://bitbucket.org/anzmap/sprites/raw/HEAD/' + str(raid_pokemon_id) + '.png'
         raid_embed.set_thumbnail(url=thumbnail_image_url)
