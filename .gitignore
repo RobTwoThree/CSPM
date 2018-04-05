@@ -3,3 +3,4 @@ config.py
 config.py
 *.swp
 *.pyc
+*.txt
