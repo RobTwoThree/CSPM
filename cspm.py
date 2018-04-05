@@ -64,23 +64,27 @@ async def incubate(ctx, gym_id, remaining_time):
     else:
         print('Auto-hatch cancelled. Egg was not found, possibly deleted before hatch.')
 
-async def score_it(ctx, gym_id, raid_end_time, report_type):
+async def score_it(ctx, gym_id, time_end_to_match, report_type):
     try:
         current_time = datetime.datetime.utcnow()
-        print("SELECT s.id, s.player_name, s.raid_id, s.raid_level, s.time_end, s.points, s.report_type, r.fort_id FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL;")
-        cursor.execute("SELECT s.id, s.player_name, s.raid_id, s.raid_level, s.time_end, s.points, s.report_type, r.fort_id FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL;")
+        #print("SELECT s.id, s.raid_id, s.report_type, r.fort_id FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL;")
+        cursor.execute("SELECT s.id, s.raid_id, s.report_type FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL;")
         scoring_lines = cursor.fetchall()
         count = cursor.rowcount
         if (count):
-            score_id, player_name, raid_id, raid_level, raid_end_time, points, scored_report_type, fort_id = scoring_lines[0]
+            score_id, scored_raid_id, scored_report_type = scoring_lines[0]
             print('scored_report_type=' + str(scored_report_type))
         print('count=' + str(count))
         
         
         
         if ( count == 0 ):
+            cursor.execute("SELECT id, fort_id, level, time_end FROM raids WHERE fort_id='" + str(gym_id) + "' AND time_end='" + str(time_end_to_match) + "';")
+            raid_data = cursor.fetchall()
+            raid_id, fort_id, raid_level, raid_time_end = raid_data[0]
+            
             cursor.execute("INSERT INTO scoreboard(player_name, raid_id, raid_level, time_end, points, report_type) " +
-                           "VALUES ('" + str(ctx.message.author.name) + "','NULL','NULL','NULL','NULL','NULL' ) ")
+                           "VALUES ('" + str(ctx.message.author.name) + "','" + str(raid_id) + "','" + str(raid_level) + "','" + str(raid_time_end) + "','1','" + str(ADDED_EGG) + "' );")
             print('Count it.')
         elif ( (count == 1) and (scored_report_type == ADDED_EGG) ):
             print('Score may count if scored_report_type is 1 (ADDED_EGG).')
@@ -173,7 +177,7 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                     await bot.send_message(discord.Object(id=log_channel), embed=raid_embed)
                     
                     print(str(ctx.message.author.name) + ' reported a ' + str(pokemon_name) + ' at ' + str(gym_id) +': ' + str(gym_name) + ' gym with ' + str(raw_time_remaining) + ' minutes left.')
-                    bot.loop.create_task(score_it(ctx,gym_id,time.localtime(est_end_time),ADDED_EGG))
+                    bot.loop.create_task(score_it(ctx, gym_id, est_end_time, ADDED_EGG))
             else:
                 # Update Egg to a hatched Raid Boss
                 if (raid_count):
