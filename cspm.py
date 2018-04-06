@@ -4,7 +4,7 @@ from discord.ext import commands
 import asyncio
 from pokemonlist import pokemon, pokejson, pokejson_by_name
 from cspm_utils import find_pokemon_id, get_team_id, get_team_name, get_team_color, get_egg_url, get_time
-from config import bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id
+from config import admin_channel, bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id
 import datetime
 import calendar
 import time
@@ -316,7 +316,7 @@ async def handle_missing_raid_arg(ctx, error):
 
 @bot.command(pass_context=True)
 async def list(ctx, raw_gym_name):
-    if ctx and ctx.message.channel.id == str(bot_channel):
+    if ctx and ( (ctx.message.channel.id == str(bot_channel)) or (ctx.message.channel.id == str(admin_channel)) ):
         database.ping(True)
         try:
             if raw_gym_name.isnumeric():
@@ -473,7 +473,7 @@ async def activeraids(ctx):
 @bot.command(pass_context=True)
 async def updategymname(ctx, fort_id, new_gym_name):
     database.ping(True)
-    if ctx and ctx.message.channel.id == str(bot_channel):
+    if ctx and ctx.message.channel.id == str(admin_channel):
         try:
             cursor.execute("SELECT id, name FROM forts WHERE id='" + str(fort_id) + "';")
             gym_data = cursor.fetchall()
