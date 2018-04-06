@@ -12,6 +12,8 @@ import threading
 ADDED_EGG = 1
 HATCHED_EGG = 2
 ADDED_BOSS = 3
+FULL_POINT = 1
+PARTIAL_POINT = 0.5
 
 bot = commands.Bot(command_prefix = '!') # Set prefix to !
 
@@ -67,34 +69,69 @@ async def incubate(ctx, gym_id, remaining_time):
 async def score_it(ctx, gym_id, time_end_to_match, report_type):
     try:
         current_time = datetime.datetime.utcnow()
-        #print("SELECT s.id, s.raid_id, s.report_type, r.fort_id FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL;")
-        cursor.execute("SELECT s.id, s.raid_id, s.report_type FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL;")
+        score_eligibility_query = "SELECT s.id, s.raid_id, s.report_type FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL AND s.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';"
+        #print("SELECT s.id, s.raid_id, s.report_type FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL AND s.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';")
+        cursor.execute(score_eligibility_query)
         scoring_lines = cursor.fetchall()
         count = cursor.rowcount
         if (count):
             score_id, scored_raid_id, scored_report_type = scoring_lines[0]
-            print('scored_report_type=' + str(scored_report_type))
-        print('count=' + str(count))
+
         
         
         
         if ( count == 0 ):
-            cursor.execute("SELECT id, fort_id, level, time_end FROM raids WHERE fort_id='" + str(gym_id) + "' AND time_end='" + str(time_end_to_match) + "';")
+            raid_query = "SELECT id, fort_id, level, time_end FROM raids WHERE fort_id='" + str(gym_id) + "' AND time_end='" + str(time_end_to_match) + "';"
+            cursor.execute(raid_query)
             raid_data = cursor.fetchall()
             raid_id, fort_id, raid_level, raid_time_end = raid_data[0]
             
-            cursor.execute("INSERT INTO scoreboard(player_name, raid_id, raid_level, time_end, points, report_type) " +
-                           "VALUES ('" + str(ctx.message.author.name) + "','" + str(raid_id) + "','" + str(raid_level) + "','" + str(raid_time_end) + "','1','" + str(ADDED_EGG) + "' );")
-            print('Count it.')
+            insert_added_egg_query = "INSERT INTO scoreboard(player_name, raid_id, raid_level, time_end, points, report_type) " + "VALUES ('" + str(ctx.message.author.name) + "','" + str(raid_id) + "','" + str(raid_level) + "','" + str(raid_time_end) + "','" + str(FULL_POINT) + "','" + str(ADDED_EGG) + "' );"
+            cursor.execute(insert_added_egg_query)
+ 
+            total_score_query = "SELECT SUM(points) AS total_points FROM scoreboard WHERE player_name='" + str(ctx.message.author.name) + "';"
+            cursor.execute(total_score_query)
+            player_score = cursor.fetchall()
+            player_total_score = player_score[0][0]
+            
+            notify_of_total_score = str(ctx.message.author.name) + " has " + str(player_total_score) + " points."
+            
+            notify_of_score = str(ctx.message.author.name) + " scored " + str(FULL_POINT) + " point."
+            print(notify_of_score)
+            await bot.send_message(discord.Object(id=bot_channel), "`\n" + notify_of_score + "\n" + notify_of_total_score + "`")
         elif ( (count == 1) and (scored_report_type == ADDED_EGG) ):
-            print('Score may count if scored_report_type is 1 (ADDED_EGG).')
+            raid_query = "SELECT id, fort_id, level, time_end FROM raids WHERE fort_id='" + str(gym_id) + "' AND time_end='" + str(time_end_to_match) + "';"
+            cursor.execute(raid_query)
+            raid_data = cursor.fetchall()
+            raid_id, fort_id, raid_level, raid_time_end = raid_data[0]
+            
+            insert_hatched_egg_query = "INSERT INTO scoreboard(player_name, raid_id, raid_level, time_end, points, report_type) " + "VALUES ('" + str(ctx.message.author.name) + "','" + str(raid_id) + "','" + str(raid_level) + "','" + str(raid_time_end) + "','" + str(FULL_POINT) + "','" + str(HATCHED_EGG) + "' );"
+            cursor.execute(insert_hatched_egg_query)
+            
+            total_score_query = "SELECT SUM(points) AS total_points FROM scoreboard WHERE player_name='" + str(ctx.message.author.name) + "';"
+            cursor.execute(total_score_query)
+            player_score = cursor.fetchall()
+            player_total_score = player_score[0][0]
+            
+            notify_of_total_score = str(ctx.message.author.name) + " has " + str(player_total_score) + " points."
+            
+            notify_of_score = str(ctx.message.author.name) + " scored " + str(FULL_POINT) + " point."
+            print(notify_of_score)
+            await bot.send_message(discord.Object(id=bot_channel), "`\n" + notify_of_score + "\n" + notify_of_total_score + "`")
         else: # User maxed out attempts to score for this raid
-            print('Score should not count. Becase hit max for this raid or scored_report_type is 2 (HATCHED_EGG).')
-            print('scored_report_type is 3 (ADDED_BOSS).  Score should not count.')
+            notify_of_nonscore = str(ctx.message.author.name) + " did not score points for this update."
+            print(notify_of_nonscore)
+            await bot.send_message(discord.Object(id=bot_channel), "`" + notify_of_nonscore + "`")
         database.commit()
     except:
         print('Error. Something went wrong in scoring.')
         database.rollback()
+
+#class InvalidLevel(Exception):
+#    message = 'Invalid raid level entered. Enter value between 1-5.'
+
+#class InvalidTime(Exception):
+#    message = 'Invalid time remaining entered. Enter value between 1-60.'
 
 #raid function
 @bot.command(pass_context=True)
@@ -107,14 +144,24 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
         gym_team_id = get_team_id(raw_team)
         database.ping(True)
 
+
+        
+
+
         try:
+
+            if ( (int(raw_raid_level) < 1) or (int(raw_raid_level) > 5) ):
+                raise Exception('Invalid raid level entered. Enter value between 1-5.')
+            if ( (int(raw_time_remaining) < 1) or (int(raw_time_remaining) >= 60) ):
+                raise Exception('Invalid time entered. Enter value between 1-60.')
+
             if raw_gym_name.isnumeric():
                 cursor.execute("SELECT id, name, lat, lon FROM forts WHERE id LIKE '" + str(raw_gym_name) + "';")
             else:
                 cursor.execute("SELECT id, name, lat, lon FROM forts WHERE name LIKE '%" + str(raw_gym_name) + "%';")
             gym_data = cursor.fetchall()
             count = cursor.rowcount
-
+            
             # Single gym_id is returned so check if a raid exists for it
             if ( count == 1 ):
                 gym_id = gym_data[0][0]
@@ -202,6 +249,7 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
 
                     print(str(ctx.message.author.name) + ' updated the ' + str(raw_raid_level) + ' Egg to ' + str(pokemon_name) + ' Raid at ' + str(gym_name) + ' gym (' + str(get_team_name(gym_team_id)) + ') with ' + str(raw_time_remaining) + ' minutes left.')
 
+                    bot.loop.create_task(score_it(ctx, gym_id, remaining_time, HATCHED_EGG))
                 else:
                     cursor.execute("INSERT INTO raids("
                                    "id, external_id, fort_id , level, "
@@ -230,6 +278,8 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                     raid_embed.set_thumbnail(url=thumbnail_image_url)
                     await bot.send_message(discord.Object(id=log_channel), embed=raid_embed)
                     print(str(ctx.message.author.name) + ' reported a ' + str(pokemon_name) + ' raid at ' + str(gym_name) + ' gym (' + str(get_team_name(gym_team_id)) + ') with ' + str(raw_time_remaining) + ' minutes left.')
+                    
+                    bot.loop.create_task(score_it(ctx, gym_id, remaining_time, ADDED_BOSS))
             # Check if fort_id exists in fort_sightings.  If so update the entry, otherwise enter as a new entry.
             cursor.execute("SELECT id, fort_id, team FROM fort_sightings WHERE fort_id='" + str(gym_id) + "';")
             fs_count = cursor.rowcount
@@ -239,6 +289,10 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                 cursor.execute("INSERT INTO fort_sightings(fort_id, team, last_modified) VALUES (" + str(gym_id) + ", " + str(gym_team_id) + ", " + str(calendar.timegm(current_time.timetuple())) + ");")
 
             database.commit()
+
+        except Exception as e:
+            message = e.args[0]
+            print(message)
 
         except:
             database.rollback()
@@ -250,9 +304,15 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                 await bot.say('Unsuccesful add to the map. !raid "*gym_name*" *pokemon_name* *raid_level* *minutes_left*\n')
 
 
+
+
 @raid.error
 async def handle_missing_raid_arg(ctx, error):
-    await bot.say('Unsuccesful add to the map. Missing arguments. !raid  "*gym_name*"  *pokemon_name*  *raid_level*  *minutes_left*  *gym_team*\n')
+    try:
+        #await bot.say('Unsuccesful add to the map. Missing arguments. !raid  "*gym_name*"  *pokemon_name*  *raid_level*  *minutes_left*  *gym_team*\n')
+        raise InvalidLevel('Huh?')
+    except InvalidLevel as e:
+        print(e.args)
 
 @bot.command(pass_context=True)
 async def list(ctx, raw_gym_name):
@@ -441,6 +501,27 @@ async def handle_missing_fort_id(ctx, error):
         except:
             await bot.say('Exception reached.')
 
+@bot.command(pass_context=True)
+async def scoreboard(ctx):
+    if ctx and ctx.message.channel.id == str(bot_channel):
+        try:
+            scoreboard_query = "SELECT player_name, SUM(points) AS total_points FROM scoreboard GROUP BY player_name ORDER BY total_points DESC;"
+            cursor.execute(scoreboard_query)
+            scoreboard_data = cursor.fetchall()
+            
+            leaderboard = ''
+            position = 1
+            for player in scoreboard_data:
+                player_name, total_points = player
+                leaderboard += str(position) + '. ' + str(player_name) + ': ' + str(total_points) + '\n'
+                position += 1
+
+            if ( leaderboard != '' ):
+                await bot.send_message(discord.Object(id=bot_channel),str(leaderboard))
+            
+            database.commit()
+        except:
+            database.rollback()
 
 @bot.command(pass_context=True)
 async def helpme(ctx):
