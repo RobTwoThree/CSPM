@@ -4,7 +4,7 @@ from discord.ext import commands
 import asyncio
 from pokemonlist import pokemon, pokejson, pokejson_by_name
 from cspm_utils import find_pokemon_id, get_team_id, get_team_name, get_team_color, get_egg_url, get_time
-from config import admin_channel, bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id
+from config import bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id
 import datetime
 import calendar
 import time
@@ -331,7 +331,7 @@ async def handle_missing_raid_arg(ctx, error):
 
 @bot.command(pass_context=True)
 async def list(ctx, raw_gym_name):
-    if ctx and ( (ctx.message.channel.id == str(bot_channel)) or (ctx.message.channel.id == str(admin_channel)) ):
+    if ctx and ctx.message.channel.id == str(bot_channel):
         database.ping(True)
         try:
             if raw_gym_name.isnumeric():
@@ -488,28 +488,28 @@ async def activeraids(ctx):
             database.rollback()
             await bot.say('There are no active raids.')
 
-@bot.command(pass_context=True)
-async def updategymname(ctx, fort_id, new_gym_name):
-    database.ping(True)
-    if ctx and ctx.message.channel.id == str(admin_channel):
-        try:
-            cursor.execute("SELECT id, name FROM forts WHERE id='" + str(fort_id) + "';")
-            gym_data = cursor.fetchall()
-            gym_count = cursor.rowcount
+#@bot.command(pass_context=True)
+#async def updategymname(ctx, fort_id, new_gym_name):
+#    database.ping(True)
+#    if ctx and ctx.message.channel.id == str(admin_channel):
+#        try:
+#            cursor.execute("SELECT id, name FROM forts WHERE id='" + str(fort_id) + "';")
+#            gym_data = cursor.fetchall()
+#            gym_count = cursor.rowcount
+#
+#            if ( gym_count == 1 ):
+#                fort_id, gym_name = gym_data[0]
 
-            if ( gym_count == 1 ):
-                fort_id, gym_name = gym_data[0]
-
-                cursor.execute("UPDATE forts SET name='" + str(new_gym_name) + "' WHERE id='" + str(fort_id) + "';")
-                cursor.execute("SELECT name FROM forts WHERE id='" + str(fort_id) + "';")
-                updated_gym_data = cursor.fetchall()
-                updated_gym_name = updated_gym_data[0][0]
-                await bot.say('Changed the name of:\n__' + str(fort_id) + ': ' + str(gym_name) + '__\nto:\n**' + str(fort_id) + ': ' + str(updated_gym_name) + '**')
-            else:
-                await bot.say('There are multiple gyms with gym_id: ' + str(fort_id) + '.  Delete all of the duplicate gym_ids before proceeding.')
-            database.commit()
-        except:
-            database.rollback()
+#                cursor.execute("UPDATE forts SET name='" + str(new_gym_name) + "' WHERE id='" + str(fort_id) + "';")
+#                cursor.execute("SELECT name FROM forts WHERE id='" + str(fort_id) + "';")
+#                updated_gym_data = cursor.fetchall()
+#                updated_gym_name = updated_gym_data[0][0]
+#                await bot.say('Changed the name of:\n__' + str(fort_id) + ': ' + str(gym_name) + '__\nto:\n**' + str(fort_id) + ': ' + str(updated_gym_name) + '**')
+#            else:
+#                await bot.say('There are multiple gyms with gym_id: ' + str(fort_id) + '.  Delete all of the duplicate gym_ids before proceeding.')
+#            database.commit()
+#        except:
+#            database.rollback()
 
 @updategymname.error
 async def handle_missing_fort_id(ctx, error):
@@ -550,16 +550,16 @@ async def scoreboard(ctx):
         except:
             database.rollback()
 
-@bot.command(pass_context=True)
-async def clearscoreboard(ctx):
-    if ctx and ctx.message.channel.id == str(admin_channel):
-        try:
-            clear_scoreboard_query = "DELETE FROM scoreboard;"
-            cursor.execute(clear_scoreboard_query)
-            await bot.say('The scoreboard has been cleared!')
-            database.commit()
-        except:
-            database.rollback()
+#@bot.command(pass_context=True)
+#async def clearscoreboard(ctx):
+#    if ctx and ctx.message.channel.id == str(admin_channel):
+#        try:
+#            clear_scoreboard_query = "DELETE FROM scoreboard;"
+#            cursor.execute(clear_scoreboard_query)
+#            await bot.say('The scoreboard has been cleared!')
+#            database.commit()
+#        except:
+#            database.rollback()
 
 @bot.command(pass_context=True)
 async def helpme(ctx):
@@ -600,6 +600,6 @@ async def helpme(ctx):
             color=3447003
         )
         await bot.say(embed=help_embed1)
-        await bot.say(embed=help_embed2)
+#        await bot.say(embed=help_embed2)
 
 bot.run(token)
