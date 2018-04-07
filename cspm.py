@@ -127,11 +127,35 @@ async def score_it(ctx, gym_id, time_end_to_match, report_type):
         print('Error. Something went wrong in scoring.')
         database.rollback()
 
-#class InvalidLevel(Exception):
-#    message = 'Invalid raid level entered. Enter value between 1-5.'
+async def deduct_it(ctx, raid_id):
+    try:
+        query_scoreboard_for_raid = "SELECT id FROM scoreboard WHERE raid_id='" + str(raid_id) + "';"
+        print(query_scoreboard_for_raid)
+        cursor.execute(query_scoreboard_for_raid)
+        raid_score_quantity = cursor.rowcount
+        if ( raid_score_quantity > 0 ):
+            delete_raid_from_scoreboard_query = "DELETE FROM scoreboard WHERE raid_id='" + str(raid_id) + "';"
+            cursor.execute(delete_raid_from_scoreboard_query)
+            database.commit()
+            
+            total_score_query = "SELECT SUM(points) AS total_points FROM scoreboard WHERE player_name='" + str(ctx.message.author.name) + "';"
+            cursor.execute(total_score_query)
+            player_score = cursor.fetchall()
+            player_total_score = player_score[0][0]
 
-#class InvalidTime(Exception):
-#    message = 'Invalid time remaining entered. Enter value between 1-60.'
+            notify_of_deduction = "Raid was deleted. " + str(raid_score_quantity) + " points were deducted from " + str(ctx.message.author.name) + ".\n" + str(ctx.message.author.name) + " now has " + str(player_total_score) + " points."
+            print(notify_of_deduction)
+            await bot.send_message(discord.Object(id=bot_channel), "`" + notify_of_deduction + "`")
+        else:
+            raise Exception('Raid was deleted but was never scored so no points were deducted.')
+        database.commit()
+
+    except Exception as e:
+        message = e.args[0]
+        await bot.send_message(discord.Object(id=bot_channel), message)
+        print(message)
+    except:
+        database.rollback()
 
 #raid function
 @bot.command(pass_context=True)
@@ -141,19 +165,17 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
         pokemon_id = find_pokemon_id(pokemon_name)
         remaining_time = get_time(int(raw_time_remaining))
         current_time = datetime.datetime.utcnow()
+        current_hour = time.strftime('%H%M',  time.localtime(calendar.timegm(current_time.timetuple())))
         gym_team_id = get_team_id(raw_team)
         database.ping(True)
 
-
-        
-
-
         try:
-
             if ( (int(raw_raid_level) < 1) or (int(raw_raid_level) > 5) ):
                 raise Exception('Invalid raid level entered. Enter value between 1-5.')
             if ( (int(raw_time_remaining) < 1) or (int(raw_time_remaining) >= 60) ):
                 raise Exception('Invalid time entered. Enter value between 1-60.')
+            if ( (int(current_hour) >= 1930) or (int(current_hour) <= 500) ):
+                raise Exception('Raid report is outside of the valid raid times. Raids can be reported between 5am - 7:30pm daily.')
 
             if raw_gym_name.isnumeric():
                 cursor.execute("SELECT id, name, lat, lon FROM forts WHERE id LIKE '" + str(raw_gym_name) + "';")
@@ -161,7 +183,11 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                 cursor.execute("SELECT id, name, lat, lon FROM forts WHERE name LIKE '%" + str(raw_gym_name) + "%';")
             gym_data = cursor.fetchall()
             count = cursor.rowcount
-            
+            raid_count = 0
+            gym_names = ''
+            for gym in gym_data:
+                gym_names += str(gym[0]) + ': ' + gym[1] + ' (' + str(gym[2]) + ', ' + str(gym[3]) + ')\n'
+                    
             # Single gym_id is returned so check if a raid exists for it
             if ( count == 1 ):
                 gym_id = gym_data[0][0]
@@ -174,11 +200,12 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                     raid_id = raid_data[0][0]
                     raid_fort_id = raid_data[0][1]
                     raid_time_end = raid_data[0][2]
+            elif ( count > 1 ):
+                raise Exception('Unsuccesful add to the map. There are multiple gyms with the word "' + str(raw_gym_name) + '" in it:\n' + str(gym_names) + '\nBe a little more specific.')
+            elif ( count == 0 ):
+                raise Exception('No gym with the word "' + str(raw_gym_name) + '" in it. Use the !list command to list gyms available in the region.\n')
             else:
-                gym_names = ''
-                raid_count = 0
-                for gym in gym_data:
-                    gym_names += str(gym[0]) + ': ' + gym[1] + ' (' + str(gym[2]) + ', ' + str(gym[3]) + ')\n'
+                raise Exception('Unsuccesful add to the map. !raid "*gym_name*" *pokemon_name* *raid_level* *minutes_left*\n')
 
             if ( pokemon_name == "Egg" ):
                 est_end_time = remaining_time + 2700
@@ -292,27 +319,15 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
 
         except Exception as e:
             message = e.args[0]
+            await bot.say(message)
             print(message)
 
         except:
             database.rollback()
-            if ( count > 1 ):
-                await bot.say('Unsuccesful add to the map. There are multiple gyms with the word "' + str(raw_gym_name) + '" in it:\n' + str(gym_names) + '\nBe a little more specific.')
-            elif ( count == 0 ):
-                await bot.say('No gym with the word "' + str(raw_gym_name) + '" in it. Use the !list command to list all gyms available in the region.\n')
-            else:
-                await bot.say('Unsuccesful add to the map. !raid "*gym_name*" *pokemon_name* *raid_level* *minutes_left*\n')
-
-
-
 
 @raid.error
 async def handle_missing_raid_arg(ctx, error):
-    try:
-        #await bot.say('Unsuccesful add to the map. Missing arguments. !raid  "*gym_name*"  *pokemon_name*  *raid_level*  *minutes_left*  *gym_team*\n')
-        raise InvalidLevel('Huh?')
-    except InvalidLevel as e:
-        print(e.args)
+    await bot.say('Unsuccesful add to the map. Missing arguments. !raid  "*gym_name*"  *pokemon_name*  *raid_level*  *minutes_left*  *gym_team*\n')
 
 @bot.command(pass_context=True)
 async def list(ctx, raw_gym_name):
@@ -372,11 +387,11 @@ async def deleteraid(ctx, fort_id):
 
                 # Gym id is valid and returned 1 result
                 if ( count == 1 ):
-                    cursor.execute("SELECT r.fort_id, r.level, r.pokemon_id, r.time_battle, r.time_end, fs.team FROM raids r JOIN fort_sightings fs ON r.fort_id = fs.fort_id WHERE r.fort_id='" + str(fort_id) + "' AND r.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';")
+                    cursor.execute("SELECT r.id, r.fort_id, r.level, r.pokemon_id, r.time_battle, r.time_end, fs.team FROM raids r JOIN fort_sightings fs ON r.fort_id = fs.fort_id WHERE r.fort_id='" + str(fort_id) + "' AND r.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';")
                     raid_data = cursor.fetchall()
                     raid_count = cursor.rowcount
 
-                    raid_fort_id, raid_level, raid_pokemon_id, raid_time_battle, raid_time_end, raid_gym_team = raid_data[0]
+                    raid_id, raid_fort_id, raid_level, raid_pokemon_id, raid_time_battle, raid_time_end, raid_gym_team = raid_data[0]
 
                     if ( raid_pokemon_id == 0 ):
                         raid_pokemon_name = 'Unknown (Egg)'
@@ -393,6 +408,9 @@ async def deleteraid(ctx, fort_id):
                                   '\nEnd Time: **' + str(time.strftime('%I:%M %p',  time.localtime(raid_time_end))) + '**')
 
                     cursor.execute("DELETE FROM raids WHERE fort_id='" + str(fort_id) + "' AND time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';")
+ 
+                    # Deduct the points
+                    bot.loop.create_task(deduct_it(ctx, raid_id))
 
                     raid_embed=discord.Embed(
                         title='~~Level ' + str(raid_level) + ' ' + str(raid_pokemon_name).capitalize() + ' Raid~~ **RAID DELETED**',
@@ -508,6 +526,10 @@ async def scoreboard(ctx):
             scoreboard_query = "SELECT player_name, SUM(points) AS total_points FROM scoreboard GROUP BY player_name ORDER BY total_points DESC;"
             cursor.execute(scoreboard_query)
             scoreboard_data = cursor.fetchall()
+            count = cursor.rowcount
+            
+            if ( count == 0 ):
+                raise Exception('The scoreboard is currently empty.')
             
             leaderboard = ''
             position = 1
@@ -520,14 +542,30 @@ async def scoreboard(ctx):
                 await bot.send_message(discord.Object(id=bot_channel),str(leaderboard))
             
             database.commit()
+
+        except Exception as e:
+            message = e.args[0]
+            await bot.send_message(discord.Object(id=bot_channel), message)
+            
+        except:
+            database.rollback()
+
+@bot.command(pass_context=True)
+async def clearscoreboard(ctx):
+    if ctx and ctx.message.channel.id == str(admin_channel):
+        try:
+            clear_scoreboard_query = "DELETE FROM scoreboard;"
+            cursor.execute(clear_scoreboard_query)
+            await bot.say('The scoreboard has been cleared!')
+            database.commit()
         except:
             database.rollback()
 
 @bot.command(pass_context=True)
 async def helpme(ctx):
     if ctx and ctx.message.channel.id == str(bot_channel):
-        help_embed=discord.Embed(
-            title='PoGoSD CSPM Help',
+        help_embed1=discord.Embed(
+            title='PoGoSD CSPM Help - Typical Commands',
             description='**Mapping Raids:**\n'
                     'To add a raid to the live map, use the following command:\n'
                     '`!raid <gym_name or gym_id> <pokemon_name> <raid_level> <minutes remaining> <gym team>`\n'
@@ -540,11 +578,6 @@ async def helpme(ctx):
                     '`!list <search_string or number>`\n'
                     'Example: `!list 55`\n'
                     'Result: `55: Name of a Gym`\n\n'
-                    '**Modify Gym Name**\n'
-                    'Use this command to modify a gym name to help with identifying gyms with the same name, like Starbucks.  Use in conjunction with '
-                    '!list to help you identify the gym_id.\n'
-                    '`!updategymname 55 <new name of gym>`\n'
-                    'Example: `!updategymname 55 "Starbucks inside Vons"`\n\n'
                     '**Delete Raids**\n'
                     'This will allow you to delete a raid by gym id\n'
                     '`!deleteraid <gym_id>`\n'
@@ -554,6 +587,19 @@ async def helpme(ctx):
                     '`!activeraids`',
             color=3447003
         )
-        await bot.say(embed=help_embed)
+        help_embed2=discord.Embed(
+            title='PoGoSD CSPM Help - Administrative Commands',
+            description='**Modify Gym Name** (*only available on an admin channel*)\n'
+                    'Use this command to modify a gym name to help with identifying gyms with the same name, like Starbucks.  Use in conjunction with '
+                    '!list to help you identify the gym_id.\n'
+                    '`!updategymname 55 <new name of gym>`\n'
+                    'Example: `!updategymname 55 "Starbucks inside Vons`\n\n'
+                    '**Clear Scoreboard** (*only available on an admin channel*)\n'
+                    'Use this command to clear the scoreboard.\n'
+                    'Example: `!clearscoreboard`\n',
+            color=3447003
+        )
+        await bot.say(embed=help_embed1)
+        await bot.say(embed=help_embed2)
 
 bot.run(token)
