@@ -511,13 +511,13 @@ async def activeraids(ctx):
 #        except:
 #            database.rollback()
 
-@updategymname.error
-async def handle_missing_fort_id(ctx, error):
-    if ctx:
-        try:
-            await bot.say('Missing arugment(s).\n`!updategymname <gym_id> <new_gym_name>`')
-        except:
-            await bot.say('Exception reached.')
+#@updategymname.error
+#async def handle_missing_fort_id(ctx, error):
+#    if ctx:
+#        try:
+#            await bot.say('Missing arugment(s).\n`!updategymname <gym_id> <new_gym_name>`')
+#        except:
+#            await bot.say('Exception reached.')
 
 @bot.command(pass_context=True)
 async def scoreboard(ctx):
