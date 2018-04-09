@@ -4,7 +4,7 @@ from discord.ext import commands
 import asyncio
 from pokemonlist import pokemon, pokejson, pokejson_by_name
 from cspm_utils import find_pokemon_id, get_team_id, get_team_name, get_team_color, get_egg_url, get_time
-from config import bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id
+from config import admin_channel, bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id, curfew
 import datetime
 import calendar
 import time
@@ -47,7 +47,7 @@ async def incubate(ctx, gym_id, remaining_time):
         gym_id, gym_name, gym_lat, gym_lon, gym_team_id, raid_level, raid_pokemon_id, time_end = raid_data[0]
         await bot.send_message(channel,'Auto updated **Level ' + str(raid_level) + ' Egg to ' + str(pokejson[str(raid_pokemon_id)]) + ' Raid' + '**' +
                       '\nGym: **' + str(gym_id) + ': ' + str(gym_name) + ' Gym' + '**' +
-                      '\nRaid Ends: **' + str(time.strftime('%I:%M %p',  time.localtime(remaining_time))) + '**' +
+                      '\nRaid Ends: **' + str(time.strftime('%I:%M %p',  time.localtime(time_end))) + '**' +
                       '\nTeam: **' + str(get_team_name(gym_team_id)) + '**')
         print('Legendary egg at Gym ID: ' + str(gym_id) + ' hatched into ' + str(pokejson[str(raid_pokemon_id)]))
 
@@ -174,8 +174,9 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                 raise Exception('Invalid raid level entered. Enter value between 1-5.')
             if ( (int(raw_time_remaining) < 1) or (int(raw_time_remaining) >= 60) ):
                 raise Exception('Invalid time entered. Enter value between 1-60.')
-            if ( (int(current_hour) >= 1930) or (int(current_hour) <= 500) ):
-                raise Exception('Raid report is outside of the valid raid times. Raids can be reported between 5am - 7:30pm daily.')
+            if ( curfew == 'true' ):
+                if ( (int(current_hour) >= 1930) or (int(current_hour) <= 500) ):
+                    raise Exception('Raid report is outside of the valid raid times. Raids can be reported between 5am - 7:30pm daily.')
 
             if raw_gym_name.isnumeric():
                 cursor.execute("SELECT id, name, lat, lon FROM forts WHERE id LIKE '" + str(raw_gym_name) + "';")
@@ -216,7 +217,8 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                                   '\nGym: **' + str(gym_id) + ': ' + str(gym_name) + ' Gym' + '**' +
                                   '\nHatches: **' + str(time.strftime('%I:%M %p',  time.localtime(remaining_time))) + '**' +
                                   '\nRaid Ends: **' + str(time.strftime('%I:%M %p',  time.localtime(est_end_time))) + '**' +
-                                  '\nTeam: **' + str(get_team_name(gym_team_id)) + '**')
+                                  '\nTeam: **' + str(get_team_name(gym_team_id)) + '**' +
+                                  '\n\n`No points were scored because raid was already reported.`')
                 else:
                     # Setup task to automatically hatch Legendary egg
                     if ( raw_raid_level == '5' ):
@@ -259,7 +261,8 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                     await bot.say('Updated **Level ' + str(raw_raid_level) + ' Egg to ' + str(pokemon_name) + ' Raid' + '**' +
                                   '\nGym: **' + str(gym_id) + ': ' + str(gym_name) + ' Gym' + '**' +
                                   '\nRaid Ends: **' + str(time.strftime('%I:%M %p',  time.localtime(remaining_time))) + '**' +
-                                  '\nTeam: **' + str(get_team_name(gym_team_id)) + '**')
+                                  '\nTeam: **' + str(get_team_name(gym_team_id)) + '**' +
+                                  '\n\n`No points were scored because raid was already reported.`')
 
                     raid_embed=discord.Embed(
                         title='**Level ' + str(raw_raid_level) + ' ' + str(pokemon_name) + ' Raid**',
@@ -331,7 +334,8 @@ async def handle_missing_raid_arg(ctx, error):
 
 @bot.command(pass_context=True)
 async def list(ctx, raw_gym_name):
-    if ctx and ctx.message.channel.id == str(bot_channel):
+  
+    if ctx and ( (ctx.message.channel.id == str(bot_channel)) or ((ctx.message.channel.id == str(admin_channel)))):
         database.ping(True)
         try:
             if raw_gym_name.isnumeric():
@@ -488,36 +492,40 @@ async def activeraids(ctx):
             database.rollback()
             await bot.say('There are no active raids.')
 
-#@bot.command(pass_context=True)
-#async def updategymname(ctx, fort_id, new_gym_name):
-#    database.ping(True)
-#    if ctx and ctx.message.channel.id == str(admin_channel):
-#        try:
-#            cursor.execute("SELECT id, name FROM forts WHERE id='" + str(fort_id) + "';")
-#            gym_data = cursor.fetchall()
-#            gym_count = cursor.rowcount
-#
-#            if ( gym_count == 1 ):
-#                fort_id, gym_name = gym_data[0]
+@bot.command(pass_context=True)
+async def updategymname(ctx, fort_id, new_gym_name):
+    if ( admin_channel == 'disabled'):
+        await bot.say('The !updategymname command is disabled')
+        pass
+    else:
+        database.ping(True)
+        if ctx and ctx.message.channel.id == str(admin_channel):
+            try:
+                cursor.execute("SELECT id, name FROM forts WHERE id='" + str(fort_id) + "';")
+                gym_data = cursor.fetchall()
+                gym_count = cursor.rowcount
 
-#                cursor.execute("UPDATE forts SET name='" + str(new_gym_name) + "' WHERE id='" + str(fort_id) + "';")
-#                cursor.execute("SELECT name FROM forts WHERE id='" + str(fort_id) + "';")
-#                updated_gym_data = cursor.fetchall()
-#                updated_gym_name = updated_gym_data[0][0]
-#                await bot.say('Changed the name of:\n__' + str(fort_id) + ': ' + str(gym_name) + '__\nto:\n**' + str(fort_id) + ': ' + str(updated_gym_name) + '**')
-#            else:
-#                await bot.say('There are multiple gyms with gym_id: ' + str(fort_id) + '.  Delete all of the duplicate gym_ids before proceeding.')
-#            database.commit()
-#        except:
-#            database.rollback()
+                if ( gym_count == 1 ):
+                    fort_id, gym_name = gym_data[0]
 
-#@updategymname.error
-#async def handle_missing_fort_id(ctx, error):
-#    if ctx:
-#        try:
-#            await bot.say('Missing arugment(s).\n`!updategymname <gym_id> <new_gym_name>`')
-#        except:
-#            await bot.say('Exception reached.')
+                    cursor.execute("UPDATE forts SET name='" + str(new_gym_name) + "' WHERE id='" + str(fort_id) + "';")
+                    cursor.execute("SELECT name FROM forts WHERE id='" + str(fort_id) + "';")
+                    updated_gym_data = cursor.fetchall()
+                    updated_gym_name = updated_gym_data[0][0]
+                    await bot.say('Changed the name of:\n__' + str(fort_id) + ': ' + str(gym_name) + '__\nto:\n**' + str(fort_id) + ': ' + str(updated_gym_name) + '**')
+                else:
+                    await bot.say('There are multiple gyms with gym_id: ' + str(fort_id) + '.  Delete all of the duplicate gym_ids before proceeding.')
+                database.commit()
+            except:
+                database.rollback()
+
+@updategymname.error
+async def handle_missing_fort_id(ctx, error):
+    if ctx:
+        try:
+            await bot.say('Missing arugment(s).\n`!updategymname <gym_id> <new_gym_name>`')
+        except:
+            await bot.say('Exception reached.')
 
 @bot.command(pass_context=True)
 async def scoreboard(ctx):
@@ -550,16 +558,20 @@ async def scoreboard(ctx):
         except:
             database.rollback()
 
-#@bot.command(pass_context=True)
-#async def clearscoreboard(ctx):
-#    if ctx and ctx.message.channel.id == str(admin_channel):
-#        try:
-#            clear_scoreboard_query = "DELETE FROM scoreboard;"
-#            cursor.execute(clear_scoreboard_query)
-#            await bot.say('The scoreboard has been cleared!')
-#            database.commit()
-#        except:
-#            database.rollback()
+@bot.command(pass_context=True)
+async def clearscoreboard(ctx):
+    if ( admin_channel == 'disabled'):
+        await bot.say('The !clearscoreboard command is disabled')
+        pass
+    else:
+        if ctx and ctx.message.channel.id == str(admin_channel):
+            try:
+                clear_scoreboard_query = "DELETE FROM scoreboard;"
+                cursor.execute(clear_scoreboard_query)
+                await bot.say('The scoreboard has been cleared!')
+                database.commit()
+            except:
+                database.rollback()
 
 @bot.command(pass_context=True)
 async def helpme(ctx):
@@ -600,6 +612,9 @@ async def helpme(ctx):
             color=3447003
         )
         await bot.say(embed=help_embed1)
-#        await bot.say(embed=help_embed2)
+        if ( admin_channel == 'disabled'):
+            pass
+        else:
+            await bot.say(embed=help_embed2)
 
 bot.run(token)

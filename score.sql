@@ -1,1 +1,1 @@
-CREATE TABLE scoreboard (id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY, player_name VARCHAR(50), raid_id INT(11), raid_level TINYINT(3), time_end INT(11), points TINYINT(3), report_type TINYINT(3));
+CREATE TABLE scoreboard (id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY, player_name VARCHAR(50), raid_id INT(11), raid_level TINYINT(3), time_end INT(11), points TINYINT(3), report_type TINYINT(3)); ALTER TABLE scoreboard CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
