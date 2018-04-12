@@ -4,7 +4,7 @@ from discord.ext import commands
 import asyncio
 from pokemonlist import pokemon, pokejson, pokejson_by_name
 from cspm_utils import find_pokemon_id, get_team_id, get_team_name, get_team_color, get_egg_url, get_time
-from config import admin_channel, bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id, curfew
+from config import admin_channel, admin_role_id, bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id, curfew
 import datetime
 import calendar
 import time
@@ -76,10 +76,7 @@ async def score_it(ctx, gym_id, time_end_to_match, report_type):
         count = cursor.rowcount
         if (count):
             score_id, scored_raid_id, scored_report_type = scoring_lines[0]
-
-        
-        
-        
+      
         if ( count == 0 ):
             raid_query = "SELECT id, fort_id, level, time_end FROM raids WHERE fort_id='" + str(gym_id) + "' AND time_end='" + str(time_end_to_match) + "';"
             cursor.execute(raid_query)
@@ -129,21 +126,25 @@ async def score_it(ctx, gym_id, time_end_to_match, report_type):
 
 async def deduct_it(ctx, raid_id):
     try:
-        query_scoreboard_for_raid = "SELECT id FROM scoreboard WHERE raid_id='" + str(raid_id) + "';"
-        print(query_scoreboard_for_raid)
+        query_scoreboard_for_raid = "SELECT id, player_name FROM scoreboard WHERE raid_id='" + str(raid_id) + "' ORDER BY id DESC LIMIT 1;"
         cursor.execute(query_scoreboard_for_raid)
+        raid_score_data = cursor.fetchall()
         raid_score_quantity = cursor.rowcount
+        id, player_name_to_deduct = raid_score_data[0]
+        
         if ( raid_score_quantity > 0 ):
-            delete_raid_from_scoreboard_query = "DELETE FROM scoreboard WHERE raid_id='" + str(raid_id) + "';"
+            # Delete only the last raid that was scored
+            delete_raid_from_scoreboard_query = "DELETE FROM scoreboard WHERE raid_id='" + str(raid_id) + "' ORDER BY id DESC LIMIT 1;"
             cursor.execute(delete_raid_from_scoreboard_query)
+            delete_count = cursor.rowcount
             database.commit()
             
-            total_score_query = "SELECT SUM(points) AS total_points FROM scoreboard WHERE player_name='" + str(ctx.message.author.name) + "';"
+            total_score_query = "SELECT SUM(points) AS total_points FROM scoreboard WHERE player_name='" + str(player_name_to_deduct) + "';"
             cursor.execute(total_score_query)
             player_score = cursor.fetchall()
             player_total_score = player_score[0][0]
 
-            notify_of_deduction = "Raid was deleted. " + str(raid_score_quantity) + " points were deducted from " + str(ctx.message.author.name) + ".\n" + str(ctx.message.author.name) + " now has " + str(player_total_score) + " points."
+            notify_of_deduction = "Raid was deleted. " + str(delete_count) + " points were deducted from " + str(player_name_to_deduct) + ".\n" + str(player_name_to_deduct) + " now has " + str(player_total_score) + " points."
             print(notify_of_deduction)
             await bot.send_message(discord.Object(id=bot_channel), "`" + notify_of_deduction + "`")
         else:
@@ -261,8 +262,7 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                     await bot.say('Updated **Level ' + str(raw_raid_level) + ' Egg to ' + str(pokemon_name) + ' Raid' + '**' +
                                   '\nGym: **' + str(gym_id) + ': ' + str(gym_name) + ' Gym' + '**' +
                                   '\nRaid Ends: **' + str(time.strftime('%I:%M %p',  time.localtime(remaining_time))) + '**' +
-                                  '\nTeam: **' + str(get_team_name(gym_team_id)) + '**' +
-                                  '\n\n`No points were scored because raid was already reported.`')
+                                  '\nTeam: **' + str(get_team_name(gym_team_id)) + '**')
 
                     raid_embed=discord.Embed(
                         title='**Level ' + str(raw_raid_level) + ' ' + str(pokemon_name) + ' Raid**',
@@ -377,9 +377,18 @@ async def map(ctx):
 @bot.command(pass_context=True)
 async def deleteraid(ctx, fort_id):
     if ctx and ctx.message.channel.id == str(bot_channel):
-        database.ping(True)
-        current_time = datetime.datetime.utcnow()
         try:
+            database.ping(True)
+            current_time = datetime.datetime.utcnow()
+            valid_user_query = "SELECT s.player_name FROM raids r JOIN scoreboard s ON r.id = s.raid_id WHERE r.fort_id='" + str(fort_id) + "' AND r.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "' AND s.player_name='" + str(ctx.message.author.name) +  "';"
+            print(str(valid_user_query))
+            cursor.execute(valid_user_query)
+            valid_user_count = cursor.rowcount
+            print(str(valid_user_count))
+            # Check if command is coming from original raid reporter or an admin
+            if ( (valid_user_count == 0) and (admin_role_id not in [role.id for role in ctx.message.author.roles]) ):
+                raise Exception('Raid can only be deleted by original reporter or an Admin.')
+
             if fort_id.isnumeric():
                 cursor.execute("SELECT id, name, lat, lon FROM forts WHERE id='" + str(fort_id) + "';")
                 gym_data = cursor.fetchall()
@@ -410,9 +419,9 @@ async def deleteraid(ctx, fort_id):
                                   '\nPokemon: ** ' + str(raid_pokemon_name).capitalize() + '**' +
                                   '\nStart\Hatch Time: **' + str(time.strftime('%I:%M %p',  time.localtime(raid_time_battle))) + '**' +
                                   '\nEnd Time: **' + str(time.strftime('%I:%M %p',  time.localtime(raid_time_end))) + '**')
+                    delete_raid_query = "DELETE FROM raids WHERE fort_id='" + str(fort_id) + "' AND time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';"
+                    cursor.execute(delete_raid_query)
 
-                    cursor.execute("DELETE FROM raids WHERE fort_id='" + str(fort_id) + "' AND time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';")
- 
                     # Deduct the points
                     bot.loop.create_task(deduct_it(ctx, raid_id))
 
@@ -429,11 +438,15 @@ async def deleteraid(ctx, fort_id):
 
                     print(str(ctx.message.author.name) + ' deleted the Level ' + str(raid_level) + ' Raid at the ' + str(fort_id) + ': ' + str(gym_name) + ' Gym.')
                 else:
-                    await bot.say('Gym ID provided is not valid.')
+                    raise Exception('Gym ID provided is not valid.')
+        
             else:
-                await bot.say('Enter the numeric ID of the gym where the raid is located.')
+                raise Exception('Enter the numeric ID of the gym where the raid is located.')
 
             database.commit()
+        except Exception as e:
+            message = e.args[0]
+            await bot.send_message(discord.Object(id=bot_channel), message)
         except:
             database.rollback()
             await bot.say('Raid at the **' + str(fort_id) + ': ' + str(gym_name) +  ' Gym** does not exist.')
