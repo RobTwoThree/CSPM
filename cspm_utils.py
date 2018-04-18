@@ -4,6 +4,13 @@ import datetime
 import calendar
 import time
 
+def get_scoreboard(scoreboard_db):
+    if (scoreboard_db == 'disabled'):
+        scoreboard = 'scoreboard'
+    else:
+        scoreboard = scoreboard_db
+    return scoreboard
+
 def find_pokemon_id(name):
     if name == 'Egg':
         return 0

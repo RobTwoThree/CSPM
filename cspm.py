@@ -3,8 +3,8 @@ import discord
 from discord.ext import commands
 import asyncio
 from pokemonlist import pokemon, pokejson, pokejson_by_name
-from cspm_utils import find_pokemon_id, get_team_id, get_team_name, get_team_color, get_egg_url, get_time
-from config import admin_channel, admin_role_id, bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id, curfew
+from cspm_utils import find_pokemon_id, get_team_id, get_team_name, get_team_color, get_egg_url, get_time, get_scoreboard
+from config import admin_channel, admin_role_id, bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id, curfew, scoreboard_db
 import datetime
 import calendar
 import time
@@ -21,7 +21,9 @@ database = MySQLdb.connect(host,user,password,database)
 
 cursor = database.cursor()
 
-print('CSPM Started at ' + str(time.strftime('%I:%M %p on %m.%d.%y',  time.localtime(calendar.timegm(datetime.datetime.utcnow().timetuple())))) + ' for ' + str(instance_id))
+scoreboard = get_scoreboard(scoreboard_db)
+
+print('CSPM Started at ' + str(time.strftime('%I:%M %p on %m.%d.%y',  time.localtime(calendar.timegm(datetime.datetime.utcnow().timetuple())))) + ' for ' + str(instance_id) + '. Scoreboard set to: ' + str(scoreboard))
 
 async def incubate(ctx, gym_id, remaining_time):
     channel = discord.Object(id=bot_channel)
@@ -69,8 +71,9 @@ async def incubate(ctx, gym_id, remaining_time):
 async def score_it(ctx, gym_id, time_end_to_match, report_type):
     try:
         current_time = datetime.datetime.utcnow()
-        score_eligibility_query = "SELECT s.id, s.raid_id, s.report_type FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL AND s.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';"
-        #print("SELECT s.id, s.raid_id, s.report_type FROM scoreboard s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL AND s.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';")
+        scoreboard = get_scoreboard(scoreboard_db)
+        score_eligibility_query = "SELECT s.id, s.raid_id, s.report_type FROM " + str(scoreboard) + " s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL AND s.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';"
+        #print("SELECT s.id, s.raid_id, s.report_type FROM " + str(scoreboard) + " s JOIN raids r ON s.raid_id=r.id WHERE r.fort_id='" + str(gym_id) + "' AND s.report_type IS NOT NULL AND s.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "';")
         cursor.execute(score_eligibility_query)
         scoring_lines = cursor.fetchall()
         count = cursor.rowcount
@@ -83,10 +86,10 @@ async def score_it(ctx, gym_id, time_end_to_match, report_type):
             raid_data = cursor.fetchall()
             raid_id, fort_id, raid_level, raid_time_end = raid_data[0]
             
-            insert_added_egg_query = "INSERT INTO scoreboard(player_name, raid_id, raid_level, time_end, points, report_type) " + "VALUES ('" + str(ctx.message.author.name) + "','" + str(raid_id) + "','" + str(raid_level) + "','" + str(raid_time_end) + "','" + str(FULL_POINT) + "','" + str(ADDED_EGG) + "' );"
+            insert_added_egg_query = "INSERT INTO " + str(scoreboard) + "(player_name, raid_id, raid_level, time_end, points, report_type) " + "VALUES ('" + str(ctx.message.author.name) + "','" + str(raid_id) + "','" + str(raid_level) + "','" + str(raid_time_end) + "','" + str(FULL_POINT) + "','" + str(ADDED_EGG) + "' );"
             cursor.execute(insert_added_egg_query)
  
-            total_score_query = "SELECT SUM(points) AS total_points FROM scoreboard WHERE player_name='" + str(ctx.message.author.name) + "';"
+            total_score_query = "SELECT SUM(points) AS total_points FROM " + str(scoreboard) + " WHERE player_name='" + str(ctx.message.author.name) + "';"
             cursor.execute(total_score_query)
             player_score = cursor.fetchall()
             player_total_score = player_score[0][0]
@@ -102,10 +105,10 @@ async def score_it(ctx, gym_id, time_end_to_match, report_type):
             raid_data = cursor.fetchall()
             raid_id, fort_id, raid_level, raid_time_end = raid_data[0]
             
-            insert_hatched_egg_query = "INSERT INTO scoreboard(player_name, raid_id, raid_level, time_end, points, report_type) " + "VALUES ('" + str(ctx.message.author.name) + "','" + str(raid_id) + "','" + str(raid_level) + "','" + str(raid_time_end) + "','" + str(FULL_POINT) + "','" + str(HATCHED_EGG) + "' );"
+            insert_hatched_egg_query = "INSERT INTO " + str(scoreboard) + "(player_name, raid_id, raid_level, time_end, points, report_type) " + "VALUES ('" + str(ctx.message.author.name) + "','" + str(raid_id) + "','" + str(raid_level) + "','" + str(raid_time_end) + "','" + str(FULL_POINT) + "','" + str(HATCHED_EGG) + "' );"
             cursor.execute(insert_hatched_egg_query)
             
-            total_score_query = "SELECT SUM(points) AS total_points FROM scoreboard WHERE player_name='" + str(ctx.message.author.name) + "';"
+            total_score_query = "SELECT SUM(points) AS total_points FROM " + str(scoreboard) + " WHERE player_name='" + str(ctx.message.author.name) + "';"
             cursor.execute(total_score_query)
             player_score = cursor.fetchall()
             player_total_score = player_score[0][0]
@@ -126,7 +129,8 @@ async def score_it(ctx, gym_id, time_end_to_match, report_type):
 
 async def deduct_it(ctx, raid_id):
     try:
-        query_scoreboard_for_raid = "SELECT id, player_name FROM scoreboard WHERE raid_id='" + str(raid_id) + "' ORDER BY id DESC LIMIT 1;"
+        scoreboard = get_scoreboard(scoreboard_db)
+        query_scoreboard_for_raid = "SELECT id, player_name FROM " + str(scoreboard) + " WHERE raid_id='" + str(raid_id) + "' ORDER BY id DESC LIMIT 1;"
         cursor.execute(query_scoreboard_for_raid)
         raid_score_data = cursor.fetchall()
         raid_score_quantity = cursor.rowcount
@@ -134,12 +138,12 @@ async def deduct_it(ctx, raid_id):
         
         if ( raid_score_quantity > 0 ):
             # Delete only the last raid that was scored
-            delete_raid_from_scoreboard_query = "DELETE FROM scoreboard WHERE raid_id='" + str(raid_id) + "' ORDER BY id DESC LIMIT 1;"
+            delete_raid_from_scoreboard_query = "DELETE FROM " + str(scoreboard) + " WHERE raid_id='" + str(raid_id) + "' ORDER BY id DESC LIMIT 1;"
             cursor.execute(delete_raid_from_scoreboard_query)
             delete_count = cursor.rowcount
             database.commit()
             
-            total_score_query = "SELECT SUM(points) AS total_points FROM scoreboard WHERE player_name='" + str(player_name_to_deduct) + "';"
+            total_score_query = "SELECT SUM(points) AS total_points FROM " + str(scoreboard) + " WHERE player_name='" + str(player_name_to_deduct) + "';"
             cursor.execute(total_score_query)
             player_score = cursor.fetchall()
             player_total_score = player_score[0][0]
@@ -379,8 +383,9 @@ async def deleteraid(ctx, fort_id):
     if ctx and ctx.message.channel.id == str(bot_channel):
         try:
             database.ping(True)
+            scoreboard = get_scoreboard(scoreboard_db)
             current_time = datetime.datetime.utcnow()
-            valid_user_query = "SELECT s.player_name FROM raids r JOIN scoreboard s ON r.id = s.raid_id WHERE r.fort_id='" + str(fort_id) + "' AND r.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "' AND s.player_name='" + str(ctx.message.author.name) +  "';"
+            valid_user_query = "SELECT s.player_name FROM raids r JOIN " + str(scoreboard) + " s ON r.id = s.raid_id WHERE r.fort_id='" + str(fort_id) + "' AND r.time_end>'" + str(calendar.timegm(current_time.timetuple())) + "' AND s.player_name='" + str(ctx.message.author.name) +  "';"
             print(str(valid_user_query))
             cursor.execute(valid_user_query)
             valid_user_count = cursor.rowcount
@@ -544,11 +549,12 @@ async def handle_missing_fort_id(ctx, error):
 async def scoreboard(ctx):
     if ctx and ctx.message.channel.id == str(bot_channel):
         try:
-            scoreboard_query = "SELECT player_name, SUM(points) AS total_points FROM scoreboard GROUP BY player_name ORDER BY total_points DESC;"
+            scoreboard = get_scoreboard(scoreboard_db)
+            scoreboard_query = "SELECT player_name, SUM(points) AS total_points FROM " + str(scoreboard) + " GROUP BY player_name ORDER BY total_points DESC;"
             cursor.execute(scoreboard_query)
             scoreboard_data = cursor.fetchall()
             count = cursor.rowcount
-            
+          
             if ( count == 0 ):
                 raise Exception('The scoreboard is currently empty.')
             
@@ -572,14 +578,47 @@ async def scoreboard(ctx):
             database.rollback()
 
 @bot.command(pass_context=True)
+async def gymscores(ctx):
+    if ctx and ctx.message.channel.id == str(bot_channel):
+
+        try:
+            scoreboard = get_scoreboard(scoreboard_db)
+            gymscores_query = "SELECT f.id, f.name, COUNT(s.player_name) AS Count FROM (forts f INNER JOIN raids r ON f.id = r.fort_id) INNER JOIN " + str(scoreboard) + " s ON r.id = s.raid_id GROUP BY f.id ORDER BY Count DESC LIMIT 25;"
+            cursor.execute(gymscores_query)
+            gymscores_data = cursor.fetchall()
+            count = cursor.rowcount
+            
+            if ( count == 0 ):
+                raise Exception('The gym scoreboard is currently empty.')
+            
+            gymboard = ''
+            for gym in gymscores_data:
+                gym_id, gym_name, total = gym;
+                gymboard += str(gym_id) + '. ' + str(gym_name) + ': ' + str(total) + '\n'
+            
+            if ( gymboard != '' ):
+                gymboard_header = '**GYM ID. GYM NAME: NUMBER OF REPORTS**\n'
+                gymboard = gymboard_header + gymboard
+                await bot.send_message(discord.Object(id=bot_channel),str(gymboard))
+            database.commit()
+        
+        except Exception as e:
+            message = e.args[0]
+            await bot.send_message(discord.Object(id=bot_channel), message)
+        except:
+            database.rollback()
+
+
+@bot.command(pass_context=True)
 async def clearscoreboard(ctx):
     if ( admin_channel == 'disabled'):
-        await bot.say('The !clearscoreboard command is disabled')
+        await bot.say('The !clearscoreboard command is disabled for this channel.')
         pass
     else:
         if ctx and ctx.message.channel.id == str(admin_channel):
             try:
-                clear_scoreboard_query = "DELETE FROM scoreboard;"
+                scoreboard = get_scoreboard(scoreboard_db)
+                clear_scoreboard_query = "DELETE FROM " + str(scoreboard) + ";"
                 cursor.execute(clear_scoreboard_query)
                 await bot.say('The scoreboard has been cleared!')
                 database.commit()

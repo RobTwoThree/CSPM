@@ -15,3 +15,4 @@ instance_id = 'instance_name'
 legendary_id = '381'
 curfew = 'true'  #set to true to disable posts from 7:30pm to 5:00am
 admin_role_id = 'disabled' #set to admin_role_id to allow overrides of various commands like !deleteraid
+scoreboard_db = 'disabled' #specify if multiple scoreboards are used with a single fort database
