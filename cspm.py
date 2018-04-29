@@ -691,7 +691,7 @@ async def addgym(ctx, name, lat, lon):
 
 @bot.command(pass_context=True)
 async def helpme(ctx):
-    if ctx and ctx.message.channel.id == str(bot_channel):
+    if ctx and (ctx.message.channel.id == str(bot_channel) or ctx.message.channel.id == str(admin_channel)):
         help_embed1=discord.Embed(
             title='PoGoSD CSPM Help - Typical Commands',
             description='**Mapping Raids:**\n'
@@ -739,6 +739,9 @@ async def helpme(ctx):
         if ( admin_channel == 'disabled'):
             pass
         else:
-            await bot.say(embed=help_embed2)
+            if (ctx.message.channel.id == str(admin_channel)):
+                await bot.say(embed=help_embed2)
+            else:
+                pass
 
 bot.run(token)
