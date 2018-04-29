@@ -626,6 +626,70 @@ async def clearscoreboard(ctx):
                 database.rollback()
 
 @bot.command(pass_context=True)
+async def deletegym(ctx, fort_id):
+    if ( admin_channel == 'disabled'):
+        await bot.say('The !deletegym command is disabled')
+        pass
+    else:
+        database.ping(True)
+        
+        if ctx and ctx.message.channel.id == str(admin_channel):
+            try:
+                get_gym_name_query = "SELECT name FROM forts WHERE id='" + str(fort_id) + "';"
+                cursor.execute(get_gym_name_query)
+                gym_data = cursor.fetchall()
+                gym_count = cursor.rowcount
+                database.commit()
+                
+                if (gym_count):
+                    gym_name = gym_data[0][0]
+                    cursor.execute("SET FOREIGN_KEY_CHECKS=0;")
+                    database.commit()
+
+                    await bot.say('Deleting ' + str(gym_count) + ' gym.')
+                    delete_gym_query = "DELETE FROM forts WHERE id='" + str(fort_id) + "';"
+                    cursor.execute(delete_gym_query)
+                    database.commit()
+                    await bot.say('Successfully deleted gym: ' + str(fort_id) + '. ' + str(gym_name) + '.')
+
+
+                    cursor.execute("SET FOREIGN_KEY_CHECKS=1;")
+                    database.commit()
+                else:
+                    await bot.say('Failed to deleted gym.  Gym ' + str(fort_id) + ' was not found.')
+            except:
+                database.rollback()
+
+@bot.command(pass_context=True)
+async def addgym(ctx, name, lat, lon):
+    if ( admin_channel == 'disabled'):
+        await bot.say('The !addgym command is disabled')
+        pass
+    else:
+        database.ping(True)
+        
+        if ctx and ctx.message.channel.id == str(admin_channel):
+            try:
+                add_gym_query = "INSERT INTO forts (name, lat, lon) VALUES ('" + str(name) + "','" + str(lat) + "','" + str(lon) + "');"
+                await bot.say('Adding **' + str(name) + '** gym. With coordinates (' + str(lat) + ', ' + str(lon) + ')')
+                cursor.execute(add_gym_query)
+                database.commit()
+            
+                verify_gym_query = "SELECT id, name, lat, lon FROM forts WHERE name='" + str(name) + "';"
+                cursor.execute(verify_gym_query)
+                gym_entry = cursor.fetchall()
+                gym_count = cursor.rowcount
+                
+                if (gym_count):
+                    gym_id, gym_name, gym_lat, gym_lon = gym_entry[0]
+                    await bot.say('Successfully added **' + str(gym_id) + '. ' + str(gym_name) + ' Gym (' + str(gym_lat) + ', ' + str(gym_lon) + ')**')
+                else:
+                    await bot.say('Failed to add **' + str(name) + ' Gym.**')
+                database.commit()
+            except:
+                database.rollback()
+
+@bot.command(pass_context=True)
 async def helpme(ctx):
     if ctx and ctx.message.channel.id == str(bot_channel):
         help_embed1=discord.Embed(
@@ -660,7 +724,15 @@ async def helpme(ctx):
                     'Example: `!updategymname 55 "Starbucks inside Vons`\n\n'
                     '**Clear Scoreboard** (*only available on an admin channel*)\n'
                     'Use this command to clear the scoreboard.\n'
-                    'Example: `!clearscoreboard`\n',
+                    'Example: `!clearscoreboard`\n\n'
+                    '**Delete Gym** (*only available on an admin channel*)\n'
+                    '!deletegym <gym_id>\n'
+                    'Example: `!deletegym 55`\n\n'
+                    '**Add Gym** (*only available on an admin channel*)\n'
+                    'Use this command to add a new gym given the <gym_name> and coordinates <lat> <lon>\n'
+                    'Example: `!addgym "Another Utility Box" 12.345 -456.123`\n'
+                    'Example: `!addgym "Lend A Hand" 32.917845 -117.120401`\n'
+                    'Example: `!addgym "Ladies Utility Box" 32.920107 -117.120327`',
             color=3447003
         )
         await bot.say(embed=help_embed1)
