@@ -550,38 +550,6 @@ async def scoreboard(ctx):
     if ctx and ctx.message.channel.id == str(bot_channel):
         try:
             scoreboard = get_scoreboard(scoreboard_db)
-            scoreboard_query = "SELECT player_name, SUM(points) AS total_points FROM " + str(scoreboard) + " GROUP BY player_name ORDER BY total_points DESC;"
-            cursor.execute(scoreboard_query)
-            scoreboard_data = cursor.fetchall()
-            count = cursor.rowcount
-          
-            if ( count == 0 ):
-                raise Exception('The scoreboard is currently empty.')
-            
-            leaderboard = ''
-            position = 1
-            for player in scoreboard_data:
-                player_name, total_points = player
-                leaderboard += str(position) + '. ' + str(player_name) + ': ' + str(total_points) + '\n'
-                position += 1
-
-            if ( leaderboard != '' ):
-                await bot.send_message(discord.Object(id=bot_channel),str(leaderboard))
-            
-            database.commit()
-
-        except Exception as e:
-            message = e.args[0]
-            await bot.send_message(discord.Object(id=bot_channel), message)
-            
-        except:
-            database.rollback()
-
-@bot.command(pass_context=True)
-async def scoreboard2(ctx):
-    if ctx and ctx.message.channel.id == str(bot_channel):
-        try:
-            scoreboard = get_scoreboard(scoreboard_db)
             scoreboard_query = "SELECT player_name, SUM(points) AS total_points FROM " + str(scoreboard) + " GROUP BY player_name ORDER BY total_points DESC LIMIT 100;"
             cursor.execute(scoreboard_query)
             scoreboard_data = cursor.fetchall()
@@ -605,7 +573,7 @@ async def scoreboard2(ctx):
         except Exception as e:
             message = e.args[0]
             await bot.send_message(discord.Object(id=bot_channel), message)
-        
+            
         except:
             database.rollback()
 
