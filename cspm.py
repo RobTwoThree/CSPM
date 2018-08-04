@@ -582,7 +582,7 @@ async def scoreboard2(ctx):
     if ctx and ctx.message.channel.id == str(bot_channel):
         try:
             scoreboard = get_scoreboard(scoreboard_db)
-            scoreboard_query = "SELECT player_name, SUM(points) AS total_points FROM " + str(scoreboard) + " GROUP BY player_name ORDER BY total_points DESC LIMIT 10;"
+            scoreboard_query = "SELECT player_name, SUM(points) AS total_points FROM " + str(scoreboard) + " GROUP BY player_name ORDER BY total_points DESC LIMIT 100;"
             cursor.execute(scoreboard_query)
             scoreboard_data = cursor.fetchall()
             count = cursor.rowcount
