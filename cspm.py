@@ -345,10 +345,11 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
             cursor.execute("SELECT id, fort_id, team FROM fort_sightings WHERE fort_id='" + str(gym_id) + "';")
             fs_count = cursor.rowcount
             if (fs_count):
-                cursor.execute("UPDATE fort_sightings SET team='" + str(gym_team_id) + "' WHERE fort_id='" + str(gym_id) + "';")
+                fort_sightings_query = "UPDATE fort_sightings SET team='" + str(gym_team_id) + "', guard_pokemon_id='" + str(pokemon_id) + "' WHERE fort_id='" + str(gym_id) + "';"
+                cursor.execute(fort_sightings_query)
             else:
-                cursor.execute("INSERT INTO fort_sightings(fort_id, team, last_modified) VALUES (" + str(gym_id) + ", " + str(gym_team_id) + ", " + str(calendar.timegm(current_time.timetuple())) + ");")
-
+                fort_sightings_query = "INSERT INTO fort_sightings(fort_id, team, last_modified, guard_pokemon_id) VALUES (" + str(gym_id) + ", " + str(gym_team_id) + ", " + str(calendar.timegm(current_time.timetuple())) + ", " + str(pokemon_id) + ");"
+                cursor.execute(fort_sightings_query)
             database.commit()
 
         except Exception as e:
@@ -709,6 +710,11 @@ async def addgym(ctx, name, lat, lon):
                 
                 if (gym_count):
                     gym_id, gym_name, gym_lat, gym_lon = gym_entry[0]
+                    add_external_id_query = "UPDATE forts SET external_id='1000000000000000000000000000" + str(gym_id) + ".16' WHERE id='" + str(gym_id) + "';"
+                    print('add_external_id_query = ' + str(add_external_id_query))
+                    await bot.say('add_external_id_query = ' + str(add_external_id_query))
+                    cursor.execute(add_external_id_query)
+                    database.commit()
                     await bot.say('Successfully added **' + str(gym_id) + '. ' + str(gym_name) + ' Gym (' + str(gym_lat) + ', ' + str(gym_lon) + ')**')
                 else:
                     await bot.say('Failed to add **' + str(name) + ' Gym.**')
