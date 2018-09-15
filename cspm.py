@@ -3,8 +3,8 @@ import discord
 from discord.ext import commands
 import asyncio
 from pokemonlist import pokemon, pokejson, pokejson_by_name
-from cspm_utils import find_pokemon_id, get_team_id, get_team_name, get_team_color, get_egg_url, get_time, get_scoreboard
-from config import admin_channel, admin_role_id, bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id, curfew, scoreboard_db
+from cspm_utils import find_pokemon_id, find_pokemon_name, get_team_id, get_team_name, get_team_color, get_egg_url, get_time, get_scoreboard, seconds_to_minutes, minutes_to_seconds
+from config import admin_channel, admin_role_id, bot_channel, token, host, user, password, database, website, log_channel, instance_id, legendary_id, curfew, scoreboard_db, settings_db
 import datetime
 import calendar
 import time
@@ -23,13 +23,28 @@ cursor = database.cursor()
 
 scoreboard = get_scoreboard(scoreboard_db)
 
-print('CSPM Started at ' + str(time.strftime('%I:%M %p on %m.%d.%y',  time.localtime(calendar.timegm(datetime.datetime.utcnow().timetuple())))) + ' for ' + str(instance_id) + '. Scoreboard set to: ' + str(scoreboard))
+print('CSPM Started at ' + str(time.strftime('%I:%M %p on %m.%d.%y',  time.localtime(calendar.timegm(datetime.datetime.utcnow().timetuple())))) + ' for ' + str(instance_id) + '. Scoreboard set to: ' + str(scoreboard) + '. Default Settings Database set to: ' + str(settings_db))
 
 async def incubate(ctx, gym_id, remaining_time):
     channel = discord.Object(id=bot_channel)
     current_time = datetime.datetime.utcnow()
     current_epoch_time = calendar.timegm(current_time.timetuple())
     sleep_time = remaining_time - current_epoch_time
+    
+    # Get default settings
+    try:
+        get_settings_query = "SELECT legendary_id, default_despawn_time FROM " + str(settings_db) + ";"
+        cursor.execute(get_settings_query)
+        default_settings = cursor.fetchall()
+        default_settings_count = cursor.rowcount
+        if ( default_settings_count ):
+            default_legendary_id, default_despawn_time = default_settings[0]
+            legendary_id = default_legendary_id
+
+    except:
+        print('Error. Something went wrong in incubate.')
+
+    
     await bot.send_message(channel,'*Incubating Egg at Gym ID: ' + str(gym_id) + '. Will auto hatch in **' + str(sleep_time) + '** seconds.*')
     print('Auto-incubating Legendary egg at Gym ID: ' + str(gym_id) + '. Will auto hatch in ' + str(sleep_time) + ' seconds.')
 
@@ -214,7 +229,19 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
                 raise Exception('Unsuccesful add to the map. !raid "*gym_name*" *pokemon_name* *raid_level* *minutes_left*\n')
 
             if ( pokemon_name == "Egg" ):
-                est_end_time = remaining_time + 2700
+                # Get default settings
+                try:
+                    get_settings_query = "SELECT legendary_id, default_despawn_time FROM " + str(settings_db) + ";"
+                    cursor.execute(get_settings_query)
+                    default_settings = cursor.fetchall()
+                    default_settings_count = cursor.rowcount
+                    if ( default_settings_count ):
+                        default_legendary_id, default_despawn_time = default_settings[0]
+                        est_end_time = remaining_time + default_despawn_time
+                    else:
+                        est_end_time = remaining_time + 2700
+                except:
+                    print('Error. Something went wrong in raid.')
                 
                 if (raid_count):
                     cursor.execute("UPDATE raids SET level='" + str(raw_raid_level) + "', time_battle='" + str(remaining_time) + "', time_end='" + str(est_end_time) + "' WHERE id='" + str(raid_id)+ "';")
@@ -690,6 +717,123 @@ async def addgym(ctx, name, lat, lon):
                 database.rollback()
 
 @bot.command(pass_context=True)
+async def setlegendary(ctx, raw_pokemon_name):
+    if ( admin_channel == 'disabled'):
+        await bot.say('The !setlegendaryid command is disabled')
+        pass
+    else:
+        database.ping(True)
+        pokemon_name = str(raw_pokemon_name).capitalize()
+        pokemon_id = find_pokemon_id(pokemon_name)
+        
+        if ctx and ctx.message.channel.id == str(admin_channel):
+            try:
+                get_settings_query = "SELECT legendary_id, default_despawn_time FROM " + str(settings_db) + ";"
+                cursor.execute(get_settings_query)
+                default_settings = cursor.fetchall()
+                default_settings_count = cursor.rowcount
+
+                if ( default_settings_count ):
+                    default_legendary_id, default_despawn_time = default_settings[0]
+                    time_in_minutes = seconds_to_minutes(default_despawn_time)
+                    pokemon_name = find_pokemon_name(default_legendary_id)
+                    
+                    await bot.say('Legendary ID was set to: **' + str(default_legendary_id) + '  (' + str(pokemon_name) + ')**\nDefault Despawn Time is set to: **' + str(time_in_minutes) + ' minutes (' + str(default_despawn_time) + ' seconds)**')
+                    set_legendary_id_query = "UPDATE " + str(settings_db) + " SET legendary_id='" + str(pokemon_id) + "';"
+                else:
+                    await bot.say('Default settings were not configured.')
+                    set_legendary_id_query = "INSERT INTO " + str(settings_db) + " (legendary_id) VALUES ('" + str(pokemon_id) + "');"
+                database.commit()
+            
+            
+                cursor.execute(set_legendary_id_query)
+                database.commit()
+            
+                cursor.execute(get_settings_query)
+                updated_default_settings = cursor.fetchall()
+                default_legendary_id, default_despawn_time = updated_default_settings[0]
+                time_in_minutes = seconds_to_minutes(default_despawn_time)
+                pokemon_name = find_pokemon_name(default_legendary_id)
+                
+                await bot.say('Legendary ID **UPDATED** to: **' + str(default_legendary_id) + '  (' + str(pokemon_name) + ')**\nDefault Despawn Time is set to: **' + str(time_in_minutes) + ' minutes (' + str(default_despawn_time) + ' seconds)**')
+                database.commit()
+            except:
+                database.rollback()
+
+@bot.command(pass_context=True)
+async def setdespawn(ctx, minutes_input):
+    if ( admin_channel == 'disabled'):
+        await bot.say('The !setdespawn command is disabled')
+        pass
+    else:
+        database.ping(True)
+        
+        if ctx and ctx.message.channel.id == str(admin_channel):
+            try:
+                get_settings_query = "SELECT legendary_id, default_despawn_time FROM " + str(settings_db) + ";"
+                cursor.execute(get_settings_query)
+                default_settings = cursor.fetchall()
+                default_settings_count = cursor.rowcount
+
+                if ( default_settings_count ):
+                    default_legendary_id, default_despawn_time = default_settings[0]
+                    time_in_minutes = seconds_to_minutes(default_despawn_time)
+                    pokemon_name = find_pokemon_name(default_legendary_id)
+                    
+                    await bot.say('Legendary ID is set to: **' + str(default_legendary_id) + ' (' + str(pokemon_name) + ')**\nDefault Despawn Time was set to: **' + str(time_in_minutes) + ' minutes (' + str(default_despawn_time) + ' seconds)**')
+                    
+                    new_time_seconds = minutes_to_seconds(minutes_input)
+                    set_legendary_id_query = "UPDATE " + str(settings_db) + " SET default_despawn_time='" + str(new_time_seconds) + "';"
+                else:
+                    await bot.say('Default settings were not configured.')
+                    
+                    new_time_seconds = minutes_to_seconds(minutes_input)
+                    set_legendary_id_query = "INSERT INTO " + str(settings_db) + " (default_despawn_time) VALUES ('" + str(new_time_seconds) + "');"
+                database.commit()
+            
+            
+                cursor.execute(set_legendary_id_query)
+                database.commit()
+            
+                cursor.execute(get_settings_query)
+                updated_default_settings = cursor.fetchall()
+                default_legendary_id, default_despawn_time = updated_default_settings[0]
+                time_in_minutes = seconds_to_minutes(default_despawn_time)
+                pokemon_name = find_pokemon_name(default_legendary_id)
+                
+                await bot.say('Legendary ID is set to: **' + str(default_legendary_id) + '  (' + str(pokemon_name) + ')**\nDefault Despawn Time **UPDATED** to: **' + str(time_in_minutes) + ' minutes (' + str(default_despawn_time) + ' seconds)**')
+                database.commit()
+            except:
+                database.rollback()
+
+@bot.command(pass_context=True)
+async def defaultsettings(ctx):
+    if ( admin_channel == 'disabled'):
+        await bot.say('The !defaultsettings command is disabled')
+        pass
+    else:
+        database.ping(True)
+        
+        if ctx and ctx.message.channel.id == str(admin_channel):
+            try:
+                get_settings_query = "SELECT legendary_id, default_despawn_time FROM " + str(settings_db) + ";"
+                cursor.execute(get_settings_query)
+                default_settings = cursor.fetchall()
+                default_settings_count = cursor.rowcount
+
+                if ( default_settings_count ):
+                    default_legendary_id, default_despawn_time = default_settings[0]
+                    despawn_seconds = default_despawn_time
+                    despawn_minutes = seconds_to_minutes(default_despawn_time)
+                    pokemon_name = find_pokemon_name(default_legendary_id)
+                    await bot.say('Legendary ID is set to: **' + str(default_legendary_id) + ' (' + str(pokemon_name) + ')**\nDefault Despawn Time is set to: **' + str(despawn_minutes) + ' minutes (' + str(despawn_seconds) + ' seconds)**')
+                else:
+                    await bot.say('Default settings were not configured.')
+                database.commit()
+            except:
+                database.rollback()
+
+@bot.command(pass_context=True)
 async def helpme(ctx):
     if ctx and (ctx.message.channel.id == str(bot_channel) or ctx.message.channel.id == str(admin_channel)):
         help_embed1=discord.Embed(
@@ -732,7 +876,18 @@ async def helpme(ctx):
                     'Use this command to add a new gym given the <gym_name> and coordinates <lat> <lon>\n'
                     'Example: `!addgym "Another Utility Box" 12.345 -456.123`\n'
                     'Example: `!addgym "Lend A Hand" 32.917845 -117.120401`\n'
-                    'Example: `!addgym "Ladies Utility Box" 32.920107 -117.120327`',
+                    'Example: `!addgym "Ladies Utility Box" 32.920107 -117.120327`\n\n'
+                    '**Set Legendary Boss Name** (*only available on an admin channel*)\n'
+                    'Use this command to set the default Legendary Boss for autohatch\n'
+                    'Example: `!setlegendaryid Lugia`\n'
+                    'Example: `!setlegendaryid Regice`\n\n'
+                    '**Set Default Despawn Time** (*only available on an admin channel*)\n'
+                    'Use this command to set the default despawn time (in minutes) for a Legendary Boss during autohatch\n'
+                    'Example for 45 minutes: `!setdespawn 45`\n'
+                    'Example for 15 minutes: `!setdespawn 15`\n\n'
+                    '**Show Default Settings** (*only available on an admin channel*)\n'
+                    'Use this command to show the default settings for a Legendary Boss during autohatch\n'
+                    'Example: `!defaultsettings`',
             color=3447003
         )
         await bot.say(embed=help_embed1)

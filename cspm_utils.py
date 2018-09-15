@@ -27,6 +27,11 @@ def find_pokemon_id(name):
     else:
         return int(pokejson_by_name.get(name, 0))
 
+def find_pokemon_name(id):
+    pokemon_name = pokejson.get(str(id), 0)
+
+    return str(pokejson.get(str(id), 0))
+
 def get_time(minute):
     future = datetime.datetime.utcnow() + datetime.timedelta(minutes=minute)
     return calendar.timegm(future.timetuple())
@@ -88,3 +93,13 @@ def get_egg_url(egg_level):
         egg_url = LEVEL_5_EGG_URL
 
     return egg_url
+
+def minutes_to_seconds(minutes):
+    converted_time = int(minutes) * 60
+    
+    return int(converted_time)
+
+def seconds_to_minutes(seconds):
+    converted_time = int(seconds) / 60
+
+    return int(converted_time)
