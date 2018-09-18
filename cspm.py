@@ -192,8 +192,8 @@ async def raid(ctx, raw_gym_name, raw_pokemon_name, raw_raid_level, raw_time_rem
         try:
             if ( (int(raw_raid_level) < 1) or (int(raw_raid_level) > 5) ):
                 raise Exception('Invalid raid level entered. Enter value between 1-5.')
-            if ( (int(raw_time_remaining) < 1) or (int(raw_time_remaining) >= 60) ):
-                raise Exception('Invalid time entered. Enter value between 1-60.')
+            if ( (int(raw_time_remaining) < 1) or (int(raw_time_remaining) >= 90) ):
+                raise Exception('Invalid time entered. Enter value between 1-90.')
             if ( curfew == 'true' ):
                 if ( (int(current_hour) >= 1930) or (int(current_hour) <= 500) ):
                     raise Exception('Raid report is outside of the valid raid times. Raids can be reported between 5am - 7:30pm daily.')
